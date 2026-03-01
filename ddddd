@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>토탈 커맨더 인터랙티브 마스터 가이드 - 전수 수록 통합본</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;600;700&display=swap');
+        body { font-family: 'Pretendard', sans-serif; }
+        .tab-active { border-bottom: 4px solid #2563eb; color: #1e40af; font-weight: 700; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .glass-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(226, 232, 240, 0.8); }
+        .param-chip { @apply px-3 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer shadow-sm; }
+        .command-row:hover { background-color: rgba(37, 99, 235, 0.03); }
+        .copyable-cmd { cursor: pointer; transition: all 0.2s; position: relative; }
+        .copyable-cmd:hover { color: #2563eb; text-decoration: underline; }
+        .sticky-header { position: sticky; top: 0; z-index: 50; background: #f1f5f9; }
+        .recipe-card { min-height: 250px; }
+    </style>
+</head>
+<body class="bg-stone-50 text-slate-800 min-h-screen flex flex-col text-sm">
+
+    <!-- Header Section -->
+    <header class="bg-white/90 sticky top-0 z-50 border-b border-stone-200 backdrop-blur-md border-t-4 border-t-blue-600 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3 group cursor-pointer" onclick="app.switchTab(0)">
+                <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white text-2xl shadow-lg group-hover:scale-110 transition-transform">📂</div>
+                <div>
+                    <h1 class="text-xl font-black text-slate-900 tracking-tight uppercase leading-none">TC Master Ultimate</h1>
+                    <p class="text-[10px] text-blue-600 font-bold uppercase tracking-widest mt-1">Full Data & 40 Recipes Integrated</p>
+                </div>
+            </div>
+            
+            <div class="relative w-full md:w-1/3">
+                <input type="text" id="globalSearch" placeholder="ID, 명령어, 레시피, 변수 등 통합 검색..." 
+                    class="w-full bg-stone-100 border-none rounded-full py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-blue-500 transition-all outline-none text-sm shadow-inner">
+                <span class="absolute left-3 top-2.5 text-stone-400">🔍</span>
+            </div>
+        </div>
+
+        <nav class="max-w-7xl mx-auto px-4 overflow-x-auto custom-scrollbar">
+            <div class="flex space-x-8 border-b border-stone-200 whitespace-nowrap" id="navContainer">
+            </div>
+        </nav>
+    </header>
+
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8" id="viewContainer">
+    </main>
+
+    <footer class="bg-white border-t border-stone-200 py-8 mt-10">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <p class="text-stone-400 text-[10px] font-medium uppercase tracking-widest mb-1">Total Commander Ultimate Master Guide</p>
+            <p class="text-stone-300 text-[9px] font-light italic">모든 데이터가 주신 원본 텍스트에 기반하여 전수 수록되었습니다.</p>
+        </div>
+    </footer>
+
+    <script>
+        const db = {
+            categories: [
+                { id: 0, title: "단축키 사전", icon: "⌨️" },
+                { id: 1, title: "매개변수 & 옵션", icon: "🚀" },
+                { id: 2, title: "시스템 변수 전체", icon: "🧩" },
+                { id: 3, title: "버튼바 레시피 (40선)", icon: "🔘" },
+                { id: 4, title: "내부 명령", icon: "📜" }
+            ],
+            shortcuts: [
+                { key: "F1", desc: "도움말 호출", cat: "기능키", tip: "상황에 맞는 도움말 표시" },
+                { key: "F2", desc: "새로고침", cat: "기능키", tip: "소스 윈도우 목록 업데이트" },
+                { key: "F3", desc: "파일 보기", cat: "기능키", tip: "Lister 실행 (내용 보기)" },
+                { key: "F4", desc: "파일 편집", cat: "기능키", tip: "에디터 실행" },
+                { key: "F5", desc: "복사", cat: "기능키", tip: "반대편 창으로 복사" },
+                { key: "F6", desc: "이동/이름변경", cat: "기능키", tip: "파일 이동/변경" },
+                { key: "F7", desc: "새 폴더", cat: "기능키", tip: "디렉토리 생성" },
+                { key: "F8 / Del", desc: "삭제", cat: "기능키", tip: "휴지통으로" },
+                { key: "F9", desc: "메뉴 활성화", cat: "기능키", tip: "상단 메뉴 포커스" },
+                { key: "F10", desc: "왼쪽 메뉴 / 종료", cat: "기능키", tip: "메뉴 활성화 또는 종료" },
+                { key: "F11", desc: "왼쪽 드라이브바 포커스", cat: "기능키", tip: "왼쪽 드라이브 영역 이동" },
+                { key: "F12", desc: "오른쪽 드라이브바 포커스", cat: "기능키", tip: "오른쪽 드라이브 영역 이동" },
+                { key: "Alt + F1", desc: "왼쪽 드라이브 목록", cat: "Alt", tip: "왼쪽 드라이브 선택창" },
+                { key: "Alt + F2", desc: "오른쪽 드라이브 목록", cat: "Alt", tip: "오른쪽 드라이브 선택창" },
+                { key: "Alt + F5", desc: "파일 압축", cat: "Alt", tip: "선택 파일 압축" },
+                { key: "Alt + F7", desc: "찾기", cat: "Alt", tip: "상세 검색 창" },
+                { key: "Alt + Enter", desc: "속성", cat: "Alt", tip: "윈도우 속성창" },
+                { key: "Ctrl + A", desc: "전체 선택", cat: "Ctrl", tip: "모두 선택" },
+                { key: "Ctrl + B", desc: "분기 보기", cat: "Ctrl", tip: "하위 파일 평면화" },
+                { key: "Ctrl + D", desc: "즐겨찾기", cat: "Ctrl", tip: "핫리스트" },
+                { key: "Ctrl + M", desc: "일괄 이름 변경", cat: "Ctrl", tip: "Multi-Rename Tool" },
+                { key: "Ctrl + Q", desc: "퀵 뷰", cat: "Ctrl", tip: "미리보기" },
+                { key: "Ctrl + T", desc: "새 탭", cat: "Ctrl", tip: "현재 창 복제" },
+                { key: "Ctrl + U", desc: "스왑", cat: "Ctrl", tip: "경로 교체" },
+                { key: "Ctrl + \\", desc: "루트 이동", cat: "Ctrl", tip: "최상위 폴더" },
+                { key: "Backspace", desc: "상위 폴더", cat: "기타", tip: "부모 디렉토리" },
+                { key: "Insert", desc: "선택", cat: "기타", tip: "선택 후 아래로" },
+                { key: "Space", desc: "선택 및 용량", cat: "기타", tip: "폴더 용량 계산" },
+                { key: "Num +", desc: "일괄 선택", cat: "기타", tip: "확장자 패턴 선택" },
+                { key: "Num -", desc: "일괄 해제", cat: "기타", tip: "확장자 패턴 해제" },
+                { key: "Num *", desc: "선택 반전", cat: "기타", tip: "선택 항목 뒤집기" }
+            ],
+            params: [
+                { code: "%P", desc: "소스 경로 (\\ 포함)", cat: "경로", tip: "현재 활성 창의 전체 경로." },
+                { code: "%p", desc: "소스 경로 (\\ 제외)", cat: "경로", tip: "역슬래시 제외 소스 경로." },
+                { code: "%N", desc: "선택된 파일명", cat: "이름", tip: "커서 위치 파일명(확장자 포함)." },
+                { code: "%n", desc: "파일명 (확장자 제외)", cat: "이름", tip: "이름 본문만 추출." },
+                { code: "%O", desc: "파일명 본문 (Name)", cat: "이름", tip: "확장자 제외 순수 이름." },
+                { code: "%E", desc: "확장자 (Ext)", cat: "이름", tip: "순수 확장자(점 미포함)." },
+                { code: "%T", desc: "타겟 경로 (\\ 포함)", cat: "경로", tip: "반대편 창의 전체 경로." },
+                { code: "%t", desc: "타겟 경로 (\\ 제외)", cat: "경로", tip: "반대편 창 역슬래시 제외." },
+                { code: "%M", desc: "타겟 창 선택 파일명", cat: "이름", tip: "반대편 창 커서 위치 파일명." },
+                { code: "%S", desc: "선택된 모든 파일명", cat: "목록", tip: "선택 파일 목록 공백 구분." },
+                { code: "%D", desc: "선택된 모든 파일 경로", cat: "목록", tip: "전체 경로 목록 공백 구분." },
+                { code: "%V", desc: "현재 폴더명", cat: "이름", tip: "마지막 폴더 이름만 추출." },
+                { code: "%L", desc: "ANSI 리스트 생성", cat: "리스트", tip: "임시 .txt 리스트 파일 생성." },
+                { code: "%WL", desc: "UTF-16 리스트 생성", cat: "리스트", tip: "유니코드 방식 리스트." },
+                { code: "%UL", desc: "UTF-8 리스트 생성", cat: "리스트", tip: "UTF-8 인코딩 리스트 생성." },
+                { code: "%X", desc: "매개변수 숨김 시작", cat: "특수", tip: "명령줄에 표시 안 됨." },
+                { code: "%Y", desc: "따옴표 자동 추가 안함", cat: "특수", tip: "긴 경로 따옴표 무시." },
+                { code: "%K", desc: "실행 후 창 유지", cat: "특수", tip: "콘솔 종료 후 대기." },
+                { code: "%A", desc: "압축 내 파일 지원", cat: "특수", tip: "압축 내부 파일 파라미터 가능." },
+                { code: "/O", desc: "기존 창 활성화", cat: "실행", tip: "이미 실행된 TC에 전달." },
+                { code: "/N", desc: "무조건 새 창 실행", cat: "실행", tip: "항상 새로운 인스턴스." },
+                { code: "/T", desc: "새 탭으로 열기", cat: "실행", tip: "현재 탭 옆에 새 탭 생성." },
+                { code: "/L=", desc: "왼쪽 경로 지정", cat: "실행", tip: "왼쪽 패널 초기 경로 설정." },
+                { code: "/R=", desc: "오른쪽 경로 지정", cat: "실행", tip: "오른쪽 패널 초기 경로 설정." },
+                { code: "/S=C", desc: "파일 비교 도구", cat: "실행", tip: "내용 비교 창 즉시 실행." },
+                { code: "/S=S", desc: "동기화 도구", cat: "실행", tip: "디렉토리 동기화 즉시 실행." }
+            ],
+            vars: [
+                // TC 전용
+                { name: "%COMMANDER_PATH%", desc: "TC 설치 폴더", cat: "TC 전용", tip: "설치된 루트 디렉토리." },
+                { name: "%COMMANDER_EXE%", desc: "TC 실행 파일 경로", cat: "TC 전용", tip: "totalcmd.exe 전체 경로." },
+                { name: "%COMMANDER_INI%", desc: "로드된 설정 파일", cat: "TC 전용", tip: "wincmd.ini 절대 경로." },
+                { name: "%COMMANDER_DRIVE%", desc: "TC 설치 드라이브", cat: "TC 전용", tip: "드라이브 문자(예: C:)." },
+                { name: "%COMMANDER_CLP%", desc: "내부 클립보드 데이터", cat: "TC 전용", tip: "클립보드 내용 참조용." },
+                { name: "%COMMANDER_LANGUAGE%", desc: "현재 설정 언어", cat: "TC 전용", tip: "사용 중인 언어 정보." },
+                { name: "%COMMANDER_EXE_X64%", desc: "64비트 실행 파일", cat: "TC 전용", tip: "64비트 전용 파일 경로." },
+                
+                // 가상 경로 ($)
+                { name: "%$DESKTOP%", desc: "바탕 화면", cat: "가상 경로", tip: "사용자 바탕 화면 가상 경로." },
+                { name: "%$PERSONAL%", desc: "내 문서", cat: "가상 경로", tip: "사용자 문서(Documents) 폴더." },
+                { name: "%$DOWNLOADS%", desc: "다운로드 폴더", cat: "가상 경로", tip: "시스템 기본 다운로드 위치." },
+                { name: "%$PICTURES%", desc: "사진 폴더", cat: "가상 경로", tip: "라이브러리 사진 폴더." },
+                { name: "%$MUSIC%", desc: "음악 폴더", cat: "가상 경로", tip: "라이브러리 음악 폴더." },
+                { name: "%$VIDEOS%", desc: "동영상 폴더", cat: "가상 경로", tip: "라이브러리 비디오 폴더." },
+                { name: "%$APPDATA%", desc: "AppData Roaming", cat: "가상 경로", tip: "Roaming 설정 폴더." },
+                { name: "%$LOCALAPPDATA%", desc: "AppData Local", cat: "가상 경로", tip: "Local 설정 폴더." },
+                { name: "%$PROGRAMS%", desc: "시작 메뉴 프로그램", cat: "가상 경로", tip: "시작 메뉴 등록 앱 리스트." },
+                { name: "%$STARTUP%", desc: "시작 프로그램", cat: "가상 경로", tip: "윈도우 자동 실행 항목." },
+                { name: "%$FONTS%", desc: "시스템 글꼴", cat: "가상 경로", tip: "글꼴 설치 위치." },
+                { name: "%$RECYCLEBIN%", desc: "휴지통", cat: "가상 경로", tip: "휴지통 가상 폴더." },
+                { name: "%$DRIVES%", desc: "내 PC / 드라이브", cat: "가상 경로", tip: "전체 드라이브 목록." },
+                { name: "%$NETWORK%", desc: "네트워크 환경", cat: "가상 경로", tip: "공유 리스트." },
+                { name: "%$PRINTERS%", desc: "프린터 목록", cat: "가상 경로", tip: "프린터 및 팩스." },
+                { name: "%$RECENT%", desc: "최근 사용 항목", cat: "가상 경로", tip: "최근 열었던 파일." },
+                { name: "%$FAVORITES%", desc: "즐겨찾기", cat: "가상 경로", tip: "사용자 즐겨찾기 폴더." },
+                { name: "%$COMMONFILES%", desc: "공용 파일 폴더", cat: "가상 경로", tip: "시스템 공용 라이브러." },
+                { name: "%$ADMINTOOLS%", desc: "관리 도구", cat: "가상 경로", tip: "윈도우 관리 도구." },
+                
+                // OS 환경 (%)
+                { name: "%windir%", desc: "Windows 폴더", cat: "OS 환경", tip: "C:\\Windows 경로." },
+                { name: "%SystemRoot%", desc: "시스템 루트", cat: "OS 환경", tip: "OS 설치 경로." },
+                { name: "%SystemDrive%", desc: "시스템 드라이브", cat: "OS 환경", tip: "OS 설치 드라이브(C:)." },
+                { name: "%ProgramFiles%", desc: "Program Files", cat: "OS 환경", tip: "64비트 앱 기본 경로." },
+                { name: "%ProgramFiles(x86)%", desc: "Program Files(x86)", cat: "OS 환경", tip: "32비트 앱 기본 경로." },
+                { name: "%ProgramData%", desc: "공용 앱 데이터", cat: "OS 환경", tip: "공용 앱 데이터 폴더." },
+                { name: "%UserProfile%", desc: "사용자 프로필", cat: "OS 환경", tip: "C:\\Users\\계정명." },
+                { name: "%UserName%", desc: "계정 이름", cat: "OS 환경", tip: "로그인 사용자 ID." },
+                { name: "%ComputerName%", desc: "컴퓨터 이름", cat: "OS 환경", tip: "시스템 호스트 이름." },
+                { name: "%Temp%", desc: "임시 폴더", cat: "OS 환경", tip: "시스템 임시 폴더." },
+                { name: "%HomeDrive%", desc: "홈 드라이브", cat: "OS 환경", tip: "사용자 홈 드라이브." },
+                { name: "%HomePath%", desc: "홈 경로", cat: "OS 환경", tip: "사용자 홈 경로." },
+                { name: "%Public%", desc: "공용 폴더", cat: "OS 환경", tip: "공용 계정 루트." },
+                { name: "%OS%", desc: "운영체제 정보", cat: "OS 환경", tip: "OS 이름 정보." },
+                { name: "%Path%", desc: "검색 경로", cat: "OS 환경", tip: "실행 파일 검색 리스트." },
+                { name: "%Processor_Architecture%", desc: "CPU 아키텍처", cat: "OS 환경", tip: "AMD64, x86 등 타입." }
+            ],
+            buttonPresets: [
+                { title: "선택 폴더 새 창 열기", cat: "탐색", cmd: "TOTALCMD.EXE", param: "/N /O /L=\"%P%N\"", tip: "폴더를 별도의 TC 인스턴스로 즉시 엽니다." },
+                { title: "Everything 연동 검색", cat: "탐색", cmd: "Everything.exe", param: "-path \"%P\"", tip: "현재 폴더 대상 Everything 검색 시작." },
+                { title: "바탕 화면 바로가기", cat: "탐색", cmd: "cd $DESKTOP", param: "", tip: "바탕 화면 폴더로 이동." },
+                { title: "내 PC 열기", cat: "탐색", cmd: "cd $DRIVES", param: "", tip: "전체 드라이브 목록으로 이동." },
+                { title: "관리자 PowerShell", cat: "Admin", cmd: "powershell.exe", param: "-Command \"Start-Process powershell -Verb RunAs -ArgumentList '-NoExit', '-Command', 'Set-Location ''%P'''\"", tip: "현재 경로 관리자 PowerShell." },
+                { title: "관리자 CMD", cat: "Admin", cmd: "cmd.exe", param: "/c start /D \"%P\" powershell -Verb RunAs -ArgumentList '/K cd /d %P'", tip: "현재 경로 관리자 CMD 창." },
+                { title: "VS Code 열기", cat: "개발", cmd: "code", param: ".", tip: "현재 디렉토리 VS Code로 열기." },
+                { title: "전체 경로 복사", cat: "유틸", cmd: "cm_CopyFullNamesToClip", param: "", tip: "모든 파일 전체 경로 복사." },
+                { title: "파일명만 복사", cat: "유틸", cmd: "cm_CopyNamesToClip", param: "", tip: "파일명만 클립보드로 복사." },
+                { title: "파일 내용 비교", cat: "도구", cmd: "TOTALCMD.EXE", param: "/S=C \"%P%N\" \"%T%M\"", tip: "좌우 파일 내용 비교." },
+                { title: "폴더 동기화", cat: "도구", cmd: "TOTALCMD.EXE", param: "/S=S", tip: "동기화 도구 즉시 호출." },
+                { title: "오늘 날짜 폴더 생성", cat: "사무", cmd: "cmd.exe", param: "/c md %DATE%", tip: "오늘 날짜 폴더 생성." },
+                { title: "휴지통 비우기", cat: "시스템", cmd: "powershell.exe", param: "-Command \"Clear-RecycleBin -Force\"", tip: "모든 휴지통 즉시 비움." },
+                { title: "임시 폴더 청소", cat: "시스템", cmd: "cmd.exe", param: "/c \"del /q /s /f %temp%\\*.*\"", tip: "임시 폴더 비움." },
+                { title: "리소스 모니터", cat: "시스템", cmd: "resmon.exe", param: "", tip: "리소스 사용량 확인." },
+                { title: "환경 변수 편집", cat: "시스템", cmd: "rundll32.exe", param: "sysdm.cpl,EditEnvironmentVariables", tip: "환경 변수 창 열기." },
+                { title: "서비스 관리자", cat: "시스템", cmd: "services.msc", param: "", tip: "서비스 관리 창 호출." },
+                { title: "제어판 열기", cat: "시스템", cmd: "cm_OpenControls", param: "", tip: "제어판 항목 보기." },
+                { title: "레지스트리 편집기", cat: "시스템", cmd: "regedit.exe", param: "", tip: "레지스트리 관리." },
+                { title: "디스크 관리", cat: "시스템", cmd: "diskmgmt.msc", param: "", tip: "파티션/디스크 관리." },
+                { title: "작업 관리자", cat: "시스템", cmd: "taskmgr.exe", param: "", tip: "작업 관리자 실행." },
+                { title: "네트워크 어댑터", cat: "시스템", cmd: "ncpa.cpl", param: "", tip: "네트워크 연결 설정." },
+                { title: "원격 데스크톱", cat: "시스템", cmd: "mstsc.exe", param: "", tip: "원격 연결 도구." },
+                { title: "시스템 구성", cat: "시스템", cmd: "msconfig.exe", param: "", tip: "msconfig 실행." },
+                { title: "장치 관리자", cat: "시스템", cmd: "devmgmt.msc", param: "", tip: "장치 관리자 호출." },
+                { title: "프로그램 추가/제거", cat: "시스템", cmd: "appwiz.cpl", param: "", tip: "앱 삭제 설정 창." },
+                { title: "이벤트 뷰어", cat: "시스템", cmd: "eventvwr.msc", param: "", tip: "시스템 로그 확인." },
+                { title: "계산기", cat: "유틸", cmd: "calc.exe", param: "", tip: "윈도우 계산기." },
+                { title: "그림판", cat: "유틸", cmd: "mspaint.exe", param: "", tip: "윈도우 그림판." },
+                { title: "화면 캡처", cat: "유틸", cmd: "snippingtool.exe", param: "", tip: "캡처 도구 실행." },
+                { title: "메모장", cat: "유틸", cmd: "notepad.exe", param: "", tip: "빈 메모장 열기." },
+                { title: "내장 검색", cat: "TC", cmd: "cm_SearchFor", param: "", tip: "TC 내장 검색." },
+                { title: "속성창", cat: "TC", cmd: "cm_Properties", param: "", tip: "윈도우 표준 속성." },
+                { title: "압축하기", cat: "TC", cmd: "cm_PackFiles", param: "", tip: "파일 압축 호출." },
+                { title: "압축 풀기", cat: "TC", cmd: "cm_UnpackFiles", param: "", tip: "압축 해제 호출." },
+                { title: "즐겨찾기", cat: "TC", cmd: "cm_DirectoryHotlist", param: "", tip: "폴더 핫리스트." },
+                { title: "히스토리", cat: "TC", cmd: "cm_DirectoryHistory", param: "", tip: "폴더 히스토리." },
+                { title: "분기 보기", cat: "TC", cmd: "cm_DirBranch", param: "", tip: "평면 파일 보기." },
+                { title: "한 단계 위로", cat: "탐색", cmd: "cm_GoToParent", param: "", tip: "상위 폴더 이동." },
+                { title: "명령줄 내역", cat: "TC", cmd: "cm_ShowCmdLineHistory", param: "", tip: "명령줄 내역." },
+                { title: "TC 종료", cat: "TC", cmd: "cm_Exit", param: "", tip: "프로그램 종료." }
+            ],
+            internalCommands: [
+                /* SOURCE */
+                { id: 300, cmd: "cm_SrcComments", desc: "원본: 주석 표시", cat: "Source" },
+                { id: 301, cmd: "cm_SrcShort", desc: "원본: 간단히", cat: "Source" },
+                { id: 302, cmd: "cm_SrcLong", desc: "원본: 자세히", cat: "Source" },
+                { id: 303, cmd: "cm_SrcTree", desc: "원본: 디렉터리 트리", cat: "Source" },
+                { id: 304, cmd: "cm_SrcQuickView", desc: "원본: 빠른 보기 패널", cat: "Source" },
+                { id: 306, cmd: "cm_SrcQuickInternalOnly", desc: "원본: 빠른 보기, 플러그인 없음", cat: "Source" },
+                { id: 307, cmd: "cm_SrcHideQuickView", desc: "원본: 빠른 보기 패널 끄기", cat: "Source" },
+                { id: 311, cmd: "cm_SrcExecs", desc: "원본: 프로그램만", cat: "Source" },
+                { id: 312, cmd: "cm_SrcAllFiles", desc: "원본: 모든 파일", cat: "Source" },
+                { id: 313, cmd: "cm_SrcUserSpec", desc: "원본: 마지막으로 선택한 항목", cat: "Source" },
+                { id: 314, cmd: "cm_SrcUserDef", desc: "원본: 사용자 유형 선택", cat: "Source" },
+                { id: 321, cmd: "cm_SrcByName", desc: "원본: 이름별 정렬", cat: "Source" },
+                { id: 322, cmd: "cm_SrcByExt", desc: "원본: 확장자별 정렬", cat: "Source" },
+                { id: 323, cmd: "cm_SrcBySize", desc: "원본: 크기별 정렬", cat: "Source" },
+                { id: 324, cmd: "cm_SrcByDateTime", desc: "원본: 날짜별 정렬", cat: "Source" },
+                { id: 325, cmd: "cm_SrcUnsorted", desc: "원본: 정렬 안 함", cat: "Source" },
+                { id: 330, cmd: "cm_SrcNegOrder", desc: "원본: 역순", cat: "Source" },
+                { id: 331, cmd: "cm_SrcOpenDrives", desc: "원본: 드라이브 목록 열기", cat: "Source" },
+                { id: 269, cmd: "cm_SrcThumbs", desc: "원본: 썸네일 보기", cat: "Source" },
+                { id: 270, cmd: "cm_SrcCustomViewMenu", desc: "원본: 사용자 지정 보기 메뉴", cat: "Source" },
+                { id: 332, cmd: "cm_SrcPathFocus", desc: "원본: 경로에 집중 맞추기", cat: "Source" },
+                { id: 333, cmd: "cm_SrcViewModeList", desc: "원본: 보기 모드 메뉴", cat: "Source" },
+
+                /* LEFT */
+                { id: 100, cmd: "cm_LeftComments", desc: "왼쪽: 주석 표시", cat: "Left" },
+                { id: 101, cmd: "cm_LeftShort", desc: "왼쪽: 간단히", cat: "Left" },
+                { id: 102, cmd: "cm_LeftLong", desc: "왼쪽: 자세히", cat: "Left" },
+                { id: 103, cmd: "cm_LeftTree", desc: "왼쪽: 디렉터리 트리", cat: "Left" },
+                { id: 104, cmd: "cm_LeftQuickView", desc: "왼쪽: 빠른 보기 패널", cat: "Left" },
+                { id: 106, cmd: "cm_LeftQuickInternalOnly", desc: "왼쪽: 빠른 보기, 플러그인 없음", cat: "Left" },
+                { id: 107, cmd: "cm_LeftHideQuickView", desc: "왼쪽: 빠른 보기 패널 끄기", cat: "Left" },
+                { id: 111, cmd: "cm_LeftExecs", desc: "왼쪽: 프로그램만", cat: "Left" },
+                { id: 112, cmd: "cm_LeftAllFiles", desc: "왼쪽: 모든 파일", cat: "Left" },
+                { id: 113, cmd: "cm_LeftUserSpec", desc: "왼쪽: 마지막 항목", cat: "Left" },
+                { id: 114, cmd: "cm_LeftUserDef", desc: "왼쪽: 사용자 유형", cat: "Left" },
+                { id: 121, cmd: "cm_LeftByName", desc: "왼쪽: 이름 정렬", cat: "Left" },
+                { id: 122, cmd: "cm_LeftByExt", desc: "왼쪽: 확장자 정렬", cat: "Left" },
+                { id: 123, cmd: "cm_LeftBySize", desc: "왼쪽: 크기 정렬", cat: "Left" },
+                { id: 124, cmd: "cm_LeftByDateTime", desc: "왼쪽: 날짜 정렬", cat: "Left" },
+                { id: 125, cmd: "cm_LeftUnsorted", desc: "왼쪽: 정렬 안 함", cat: "Left" },
+                { id: 130, cmd: "cm_LeftNegOrder", desc: "왼쪽: 역순", cat: "Left" },
+                { id: 131, cmd: "cm_LeftOpenDrives", desc: "왼쪽: 드라이브 열기", cat: "Left" },
+                { id: 132, cmd: "cm_LeftPathFocus", desc: "왼쪽: 경로 포커스", cat: "Left" },
+                { id: 2034, cmd: "cm_LeftDirBranch", desc: "왼쪽: 분기 보기", cat: "Left" },
+                { id: 2047, cmd: "cm_LeftDirBranchSel", desc: "왼쪽: 분기 보기 (선택만)", cat: "Left" },
+                { id: 69, cmd: "cm_LeftThumbs", desc: "왼쪽: 썸네일 보기", cat: "Left" },
+                { id: 70, cmd: "cm_LeftCustomViewMenu", desc: "왼쪽: 사용자 지정 메뉴", cat: "Left" },
+                { id: 133, cmd: "cm_LeftViewModeList", desc: "왼쪽: 보기 모드 메뉴", cat: "Left" },
+
+                /* RIGHT */
+                { id: 200, cmd: "cm_RightComments", desc: "오른쪽: 주석 표시", cat: "Right" },
+                { id: 201, cmd: "cm_RightShort", desc: "오른쪽: 간단히", cat: "Right" },
+                { id: 202, cmd: "cm_RightLong", desc: "오른쪽: 자세히", cat: "Right" },
+                { id: 203, cmd: "cm_RightTree", desc: "오른쪽: 디렉터리 트리", cat: "Right" },
+                { id: 204, cmd: "cm_RightQuickView", desc: "오른쪽: 빠른 보기 패널", cat: "Right" },
+                { id: 206, cmd: "cm_RightQuickInternalOnly", desc: "오른쪽: 빠른 보기 (플러그인 제외)", cat: "Right" },
+                { id: 207, cmd: "cm_RightHideQuickView", desc: "오른쪽: 빠른 보기 패널 끄기", cat: "Right" },
+                { id: 211, cmd: "cm_RightExecs", desc: "오른쪽: 프로그램만", cat: "Right" },
+                { id: 212, cmd: "cm_RightAllFiles", desc: "오른쪽: 모든 파일", cat: "Right" },
+                { id: 221, cmd: "cm_RightByName", desc: "오른쪽: 이름 정렬", cat: "Right" },
+                { id: 222, cmd: "cm_RightByExt", desc: "오른쪽: 확장자 정렬", cat: "Right" },
+                { id: 223, cmd: "cm_RightBySize", desc: "오른쪽: 크기 정렬", cat: "Right" },
+                { id: 224, cmd: "cm_RightByDateTime", desc: "오른쪽: 날짜 정렬", cat: "Right" },
+                { id: 225, cmd: "cm_RightUnsorted", desc: "오른쪽: 정렬 안 함", cat: "Right" },
+                { id: 231, cmd: "cm_RightOpenDrives", desc: "오른쪽: 드라이브 열기", cat: "Right" },
+                { id: 2035, cmd: "cm_RightDirBranch", desc: "오른쪽: 분기 보기", cat: "Right" },
+                { id: 2048, cmd: "cm_RightDirBranchSel", desc: "오른쪽: 분기 보기 (선택만)", cat: "Right" },
+                { id: 169, cmd: "cm_RightThumbs", desc: "오른쪽: 썸네일 보기", cat: "Right" },
+                { id: 170, cmd: "cm_RightCustomViewMenu", desc: "오른쪽: 용자 지정 메뉴", cat: "Right" },
+                { id: 233, cmd: "cm_RightViewModeList", desc: "오른쪽: 보기 모드 메뉴", cat: "Right" },
+
+                /* FILE OPERATIONS */
+                { id: 903, cmd: "cm_List", desc: "리스터로 보기", cat: "File Ops" },
+                { id: 1006, cmd: "cm_ListInternalOnly", desc: "플러그인 없는 리스터 (단일)", cat: "File Ops" },
+                { id: 2933, cmd: "cm_ListInternalMulti", desc: "플러그인 없는 리스터 (선택)", cat: "File Ops" },
+                { id: 2934, cmd: "cm_ListOnly", desc: "멀티미디어 포함 리스터 (단일)", cat: "File Ops" },
+                { id: 2935, cmd: "cm_ListMulti", desc: "멀티미디어 포함 리스터 (선택)", cat: "File Ops" },
+                { id: 3026, cmd: "cm_ListExternal", desc: "외부 파일 뷰어 사용", cat: "File Ops" },
+                { id: 904, cmd: "cm_Edit", desc: "편집 (메모장)", cat: "File Ops" },
+                { id: 2931, cmd: "cm_EditNewFile", desc: "새 텍스트 파일 만들기+열기", cat: "File Ops" },
+                { id: 2943, cmd: "cm_EditFileMenu", desc: "상황 메뉴 '새로 만들기' 표시", cat: "File Ops" },
+                { id: 2932, cmd: "cm_EditExistingFile", desc: "커서 아래에서 파일 편집", cat: "File Ops" },
+                { id: 905, cmd: "cm_Copy", desc: "파일 복사", cat: "File Ops" },
+                { id: 3100, cmd: "cm_CopySamePanel", desc: "패널 내 복사", cat: "File Ops" },
+                { id: 3101, cmd: "cm_CopyOtherPanel", desc: "다른 곳에 복사", cat: "File Ops" },
+                { id: 906, cmd: "cm_RenMov", desc: "파일 이름 변경/이동", cat: "File Ops" },
+                { id: 907, cmd: "cm_MkDir", desc: "디렉터리 만들기", cat: "File Ops" },
+                { id: 911, cmd: "cm_MkDirOther", desc: "대상 패널에 디렉터리 만들기", cat: "File Ops" },
+                { id: 908, cmd: "cm_Delete", desc: "파일 삭제", cat: "File Ops" },
+                { id: 518, cmd: "cm_TestArchive", desc: "압축파일 테스트", cat: "File Ops" },
+                { id: 508, cmd: "cm_PackFiles", desc: "파일 압축", cat: "File Ops" },
+                { id: 2955, cmd: "cm_CopyToArchive", desc: "파일 압축 (복사)", cat: "File Ops" },
+                { id: 2956, cmd: "cm_MoveToArchive", desc: "파일 압축 (이동)", cat: "File Ops" },
+                { id: 509, cmd: "cm_UnpackFiles", desc: "모두 압축 풀기", cat: "File Ops" },
+                { id: 1002, cmd: "cm_RenameOnly", desc: "이름 바꾸기 (Shift+F6)", cat: "File Ops" },
+                { id: 1007, cmd: "cm_RenameSingleFile", desc: "커서 아래 파일 이름 바꾸기", cat: "File Ops" },
+                { id: 1005, cmd: "cm_MoveOnly", desc: "이동 (F6)", cat: "File Ops" },
+                { id: 1003, cmd: "cm_Properties", desc: "속성 대화상자", cat: "File Ops" },
+                { id: 1008, cmd: "cm_ModernShare", desc: "Windows 10 최신 공유", cat: "File Ops" },
+                { id: 1004, cmd: "cm_CreateShortcut", desc: "바로 가기 만들기", cat: "File Ops" },
+                { id: 1001, cmd: "cm_Return", desc: "Return 누르기 시뮬레이션", cat: "File Ops" },
+                { id: 2800, cmd: "cm_OpenAsUser", desc: "다른 사용자로 프로그램 열기", cat: "File Ops" },
+                { id: 560, cmd: "cm_Split", desc: "파일 조각 분할", cat: "File Ops" },
+                { id: 561, cmd: "cm_Combine", desc: "부분 파일 결합", cat: "File Ops" },
+                { id: 562, cmd: "cm_Encode", desc: "MIME/UUE/XXE 인코드", cat: "File Ops" },
+                { id: 563, cmd: "cm_Decode", desc: "MIME/UUE/XXE/BinHex 디코드", cat: "File Ops" },
+                { id: 564, cmd: "cm_CRCcreate", desc: "CRC 체크섬 만들기", cat: "File Ops" },
+                { id: 565, cmd: "cm_CRCcheck", desc: "CRC 체크섬 확인", cat: "File Ops" },
+                { id: 502, cmd: "cm_SetAttrib", desc: "속성 변경", cat: "File Ops" },
+
+                /* CONFIGURATION */
+                { id: 490, cmd: "cm_Config", desc: "구성: 레이아웃 (첫 페이지)", cat: "Config" },
+                { id: 476, cmd: "cm_LayoutConfig", desc: "구성: 레이아웃", cat: "Config" },
+                { id: 486, cmd: "cm_DisplayConfig", desc: "구성: 화면", cat: "Config" },
+                { id: 477, cmd: "cm_IconConfig", desc: "구성: 아이콘", cat: "Config" },
+                { id: 492, cmd: "cm_FontConfig", desc: "구성: 글꼴", cat: "Config" },
+                { id: 494, cmd: "cm_ColorConfig", desc: "구성: 색상", cat: "Config" },
+                { id: 497, cmd: "cm_ConfTabChange", desc: "구성: 탭간격/데이터 형식", cat: "Config" },
+                { id: 488, cmd: "cm_DirTabsConfig", desc: "구성: 폴더 탭", cat: "Config" },
+                { id: 483, cmd: "cm_CustomColumnConfig", desc: "구성: 사용자 지정 열", cat: "Config" },
+                { id: 2920, cmd: "cm_CustomColumnDlg", desc: "현재 사용자 지정 열 변경", cat: "Config" },
+                { id: 2939, cmd: "cm_ConfigViewModes", desc: "구성: 보기 보드", cat: "Config" },
+                { id: 2940, cmd: "cm_ConfigViewModeSwitch", desc: "구성: 보기 모드 자동 전환", cat: "Config" },
+                { id: 499, cmd: "cm_LanguageConfig", desc: "구성: 언어", cat: "Config" },
+                { id: 516, cmd: "cm_Config2", desc: "구성: 작동", cat: "Config" },
+                { id: 496, cmd: "cm_EditConfig", desc: "구성: 뷰어/편집기", cat: "Config" },
+                { id: 3036, cmd: "cm_ConfigLister", desc: "구성: 리스터", cat: "Config" },
+                { id: 487, cmd: "cm_CopyConfig", desc: "구성: 복사/삭제", cat: "Config" },
+                { id: 478, cmd: "cm_RefreshConfig", desc: "구성: 파일 목록 새로 고침", cat: "Config" },
+                { id: 479, cmd: "cm_QuickSearchConfig", desc: "구성: 빠른 검색", cat: "Config" },
+                { id: 489, cmd: "cm_FtpConfig", desc: "구성: FTP 옵션", cat: "Config" },
+                { id: 484, cmd: "cm_PluginsConfig", desc: "구성: 플러그인", cat: "Config" },
+                { id: 482, cmd: "cm_ThumbnailsConfig", desc: "구성: 썸네일", cat: "Config" },
+                { id: 481, cmd: "cm_LogConfig", desc: "구성: 로그 파일", cat: "Config" },
+                { id: 480, cmd: "cm_IgnoreConfig", desc: "구성: 무시 목록", cat: "Config" },
+                { id: 475, cmd: "cm_HistoryConfig", desc: "구성: 사용 내역", cat: "Config" },
+                { id: 491, cmd: "cm_PackerConfig", desc: "구성: 압축기", cat: "Config" },
+                { id: 485, cmd: "cm_ZipPackerConfig", desc: "구성: ZIP 압축기", cat: "Config" },
+                { id: 474, cmd: "cm_7ZipPackerConfig", desc: "구성: 7-ZIP 압축기", cat: "Config" },
+                { id: 495, cmd: "cm_Confirmation", desc: "구성: 기타, 확인", cat: "Config" },
+                { id: 493, cmd: "cm_ConfigSavePos", desc: "구성: 위치 저장", cat: "Config" },
+                { id: 498, cmd: "cm_ButtonConfig", desc: "구성: 버튼 표시줄", cat: "Config" },
+                { id: 583, cmd: "cm_ButtonConfig2", desc: "구성: 버튼 표시줄 2 (수직)", cat: "Config" },
+                { id: 580, cmd: "cm_ConfigSaveSettings", desc: "현재 설정 등 저장", cat: "Config" },
+                { id: 581, cmd: "cm_ConfigChangeIniFiles", desc: "메모장에서 ini 파일 열기", cat: "Config" },
+                { id: 582, cmd: "cm_ConfigSaveDirHistory", desc: "디렉터리 사용 내역 저장", cat: "Config" },
+                { id: 700, cmd: "cm_ChangeStartMenu", desc: "시작 메뉴 변경", cat: "Config" },
+
+                /* NETWORK & MISC */
+                { id: 512, cmd: "cm_NetConnect", desc: "네트워크 연결", cat: "Net" },
+                { id: 513, cmd: "cm_NetDisconnect", desc: "네트워크 끊기", cat: "Net" },
+                { id: 514, cmd: "cm_NetShareDir", desc: "디렉터리 공유", cat: "Net" },
+                { id: 515, cmd: "cm_NetUnshareDir", desc: "디렉터리 공유 해제", cat: "Net" },
+                { id: 503, cmd: "cm_GetFileSpace", desc: "공간 계산", cat: "Misc" },
+                { id: 511, cmd: "cm_ExecuteDOS", desc: "명령 프롬프트 열기", cat: "Misc" },
+                { id: 533, cmd: "cm_CompareDirs", desc: "디렉터리 비교", cat: "Misc" },
+                { id: 2600, cmd: "cm_SyncChangeDir", desc: "두 창 동기화 디렉토리 변경", cat: "Misc" },
+                { id: 531, cmd: "cm_Exchange", desc: "패널 교환", cat: "Misc" }
+            ]
+        };
+
+        const extendData = () => {
+            const sections = [
+                { name: "User", start: 701, end: 710, prefix: "cm_UserMenu", desc: "사용자 메뉴 N번" },
+                { name: "Tabs", start: 5001, end: 5010, prefix: "cm_SrcActivateTab", desc: "원본: N번 탭 활성화" },
+                { name: "Tabs", start: 5101, end: 5110, prefix: "cm_TrgActivateTab", desc: "대상: N번 탭 활성화" },
+                { name: "Tabs", start: 5201, end: 5210, prefix: "cm_LeftActivateTab", desc: "왼쪽: N번 탭 활성화" },
+                { name: "Tabs", start: 5301, end: 5310, prefix: "cm_RightActivateTab", desc: "오른쪽: N번 탭 활성화" },
+                { name: "Sort", start: 6001, end: 6010, prefix: "cm_SrcSortByCol", desc: "원본: N번째 열 정렬" },
+                { name: "Sort", start: 6101, end: 6110, prefix: "cm_TrgSortByCol", desc: "대상: N번째 열 정렬" },
+                { name: "Sort", start: 6201, end: 6210, prefix: "cm_LeftSortByCol", desc: "왼쪽: N번째 열 정렬" },
+                { name: "Sort", start: 6301, end: 6310, prefix: "cm_RightSortByCol", desc: "오른쪽: N번째 열 정렬" }
+            ];
+            sections.forEach(sec => {
+                for(let i=sec.start; i<=sec.end; i++) {
+                    const idx = i - sec.start + 1;
+                    db.internalCommands.push({ id: i, cmd: `${sec.prefix}${idx}`, desc: sec.desc.replace('N', idx), cat: sec.name });
+                }
+            });
+            for(let i=1; i<=9; i++) db.internalCommands.push({ id: 270+i, cmd: `cm_SrcCustomView${i}`, desc: `원본: 사용자 열 ${i}`, cat: "CustomView" });
+            for(let i=0; i<=9; i++) db.internalCommands.push({ id: 8500+i, cmd: `cm_SrcViewMode${i}`, desc: `원본: 보기 모드 ${i}`, cat: "ViewMode" });
+            const paramBase = [
+                { id: -2, cmd: "CD <directory>", desc: "지정된 디렉토리 전환" },
+                { id: -11, cmd: "SELECTFILES <*.ext>", desc: "확장자별 선택" },
+                { id: -12, cmd: "CM_WAIT <time>", desc: "밀리초 대기" }
+            ];
+            paramBase.forEach(p => db.internalCommands.push({ ...p, cat: "Params" }));
+        };
+        extendData();
+
+        const app = {
+            state: { currentTab: 0, query: "", paramFilter: "전체", varFilter: "전체", testCommand: "/N /O /L=\"%P%N\"" },
+
+            init() {
+                this.renderNav();
+                this.switchTab(0);
+                this.bindSearch();
+            },
+
+            bindSearch() {
+                const search = document.getElementById('globalSearch');
+                search.addEventListener('input', (e) => {
+                    this.state.query = e.target.value.toLowerCase();
+                    if (this.state.query.length > 0) this.renderSearchResults();
+                    else this.switchTab(this.state.currentTab);
+                });
+            },
+
+            renderNav() {
+                const nav = document.getElementById('navContainer');
+                nav.innerHTML = db.categories.map(c => `
+                    <button onclick="app.switchTab(${c.id})" 
+                        class="px-4 py-4 text-[13px] font-semibold transition-all flex items-center gap-2 
+                        ${this.state.currentTab === c.id ? 'tab-active' : 'text-stone-400 hover:text-slate-600'}">
+                        <span>${c.icon}</span> ${c.title}
+                    </button>
+                `).join('');
+            },
+
+            switchTab(id) {
+                this.state.currentTab = id;
+                this.renderNav();
+                const container = document.getElementById('viewContainer');
+                container.innerHTML = "";
+                
+                switch(id) {
+                    case 0: this.viewShortcuts(container); break;
+                    case 1: this.viewParams(container); break;
+                    case 2: this.viewVars(container); break;
+                    case 3: this.viewButtons(container); break;
+                    case 4: this.viewInternalCommands(container); break;
+                }
+            },
+
+            viewShortcuts(container) {
+                container.innerHTML = `
+                    <div class="space-y-6 animate-in fade-in duration-500">
+                        <h2 class="text-xl font-black text-slate-800 tracking-tighter italic">⌨️ 단축키 사전</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                            ${db.shortcuts.map(s => `
+                                <div class="bg-white border border-stone-200 p-4 rounded-xl hover:border-blue-400 transition-all group shadow-sm">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <code class="bg-blue-50 text-blue-700 font-black px-2 py-0.5 rounded text-[11px]">${s.key}</code>
+                                        <span class="text-[8px] uppercase font-black text-stone-300 tracking-tighter">${s.cat}</span>
+                                    </div>
+                                    <h4 class="font-bold text-slate-800 text-[13px]">${s.desc}</h4>
+                                    <p class="text-[10px] text-stone-400 mt-1 leading-tight">${s.tip}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            },
+
+            viewParams(container) {
+                const paramCats = ["전체", ...new Set(db.params.map(p => p.cat))];
+                container.innerHTML = `
+                    <div class="space-y-6 animate-in fade-in duration-500">
+                        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                            <h2 class="text-xl font-black text-slate-800 tracking-tighter italic">🚀 매개변수 & 옵션</h2>
+                            <div class="flex flex-wrap gap-1.5 justify-center">
+                                ${paramCats.map(cat => `<button onclick="app.filterParams('${cat}')" class="param-chip ${this.state.paramFilter === cat ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-stone-400 border-stone-200 hover:border-blue-400'}">${cat}</button>`).join('')}
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="glass-card p-4 rounded-3xl space-y-1 max-h-[550px] overflow-y-auto custom-scrollbar border shadow-inner bg-stone-100/50">
+                                ${this.renderParamList()}
+                            </div>
+                            <div class="glass-card p-6 rounded-3xl sticky top-24 h-fit border-blue-100 bg-blue-50/20 shadow-xl">
+                                <h3 class="text-[13px] font-black mb-3 uppercase tracking-widest text-blue-800 flex items-center gap-2">🛠️ 명령줄 조합기</h3>
+                                <div class="p-4 bg-slate-900 text-emerald-400 font-mono rounded-xl mb-4 min-h-[70px] break-all text-xs leading-relaxed border-2 border-slate-800 shadow-2xl" id="paramResult">${this.state.testCommand}</div>
+                                <button onclick="app.copyVal('paramResult')" class="w-full py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 transition-colors text-xs active:scale-95">결과 복사</button>
+                                <button onclick="app.clearTest()" class="w-full mt-2 py-1 text-[10px] text-stone-400 hover:text-red-500 font-bold">비우기</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            renderParamList() {
+                const list = this.state.paramFilter === "전체" ? db.params : db.params.filter(p => p.cat === this.state.paramFilter);
+                return list.map(p => `
+                    <div class="flex items-center gap-4 p-2.5 bg-white hover:bg-blue-50 rounded-xl transition-all group cursor-pointer border border-stone-100 shadow-sm" onclick="app.appendToTest('${p.code}')">
+                        <code class="text-blue-600 font-black min-w-[55px] text-center text-[12px] bg-blue-50 rounded py-0.5">${p.code}</code>
+                        <div class="flex-grow"><p class="text-xs font-bold text-slate-800">${p.desc}</p></div>
+                    </div>
+                `).join('');
+            },
+
+            viewVars(container) {
+                const varCats = ["전체", "TC 전용", "가상 경로", "OS 환경"];
+                container.innerHTML = `
+                    <div class="space-y-6 animate-in fade-in duration-500 text-center">
+                        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                            <h2 class="text-xl font-black text-slate-800 tracking-tighter italic">🧩 시스템 및 TC 내장 변수</h2>
+                            <div class="flex flex-wrap gap-1.5 justify-center">
+                                ${varCats.map(cat => `<button onclick="app.filterVars('${cat}')" class="param-chip ${this.state.varFilter === cat ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105' : 'bg-white text-stone-400 border-stone-200 hover:border-blue-400'}">${cat}</button>`).join('')}
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-left">
+                            ${this.renderVarCards()}
+                        </div>
+                    </div>
+                `;
+            },
+
+            renderVarCards() {
+                const list = this.state.varFilter === "전체" ? db.vars : db.vars.filter(v => v.cat === this.state.varFilter);
+                return list.map(v => `
+                    <div class="bg-white p-4 rounded-xl border border-stone-200 group hover:border-blue-500 transition-all shadow-sm flex flex-col justify-between h-full">
+                        <div>
+                            <code class="text-blue-700 font-black text-[11px] block mb-1">${v.name}</code>
+                            <h4 class="text-slate-800 font-bold mb-1 text-[12px]">${v.desc}</h4>
+                            <p class="text-[10px] text-stone-400 mb-3 leading-tight">${v.tip}</p>
+                        </div>
+                        <button onclick="app.copyToClipboard('${v.name}')" class="w-full py-1.5 bg-stone-50 text-stone-400 text-[9px] font-black rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-all uppercase tracking-widest">Copy</button>
+                    </div>
+                `).join('');
+            },
+
+            viewButtons(container) {
+                container.innerHTML = `
+                    <div class="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500">
+                        <h2 class="text-xl font-black text-slate-800 tracking-tighter italic">🔘 실전 버튼바 레시피 40선</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            ${db.buttonPresets.map((p, idx) => `
+                                <div class="glass-card p-5 rounded-2xl border border-stone-200 hover:border-blue-400 transition-all flex flex-col shadow-md recipe-card">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[8px] font-black border border-blue-100 uppercase">${p.cat}</span>
+                                        <span class="text-stone-200 font-black text-sm">#${(idx+1).toString().padStart(2, '0')}</span>
+                                    </div>
+                                    <h3 class="font-black text-slate-800 mb-1 text-sm">${p.title}</h3>
+                                    <p class="text-[11px] text-stone-400 mb-4 flex-grow font-medium leading-relaxed">${p.tip}</p>
+                                    <div class="space-y-2 bg-stone-100/80 p-3 rounded-xl border border-stone-200">
+                                        <div class="cursor-pointer group" onclick="app.copyToClipboard('${p.cmd}')">
+                                            <p class="text-[8px] font-bold text-stone-400 uppercase">명령 (Cmd)</p>
+                                            <code class="text-[10px] font-bold text-blue-700 break-all bg-white px-2 py-0.5 rounded block group-hover:bg-blue-50 border border-stone-200">${p.cmd}</code>
+                                        </div>
+                                        ${p.param ? `<div class="cursor-pointer group" onclick="app.copyToClipboard('${p.param}')"><p class="text-[8px] font-bold text-stone-400 uppercase">매개변수 (Param)</p><code class="text-[10px] font-bold text-emerald-700 break-all bg-white px-2 py-0.5 rounded block group-hover:bg-emerald-50 border border-stone-200">${p.param}</code></div>` : '<p class="text-[8px] text-stone-300 italic uppercase">No Param</p>'}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            },
+
+            viewInternalCommands(container) {
+                container.innerHTML = `
+                    <div class="space-y-4 animate-in fade-in duration-500">
+                        <h2 class="text-xl font-black text-slate-800 tracking-tighter italic">📜 내부 명령</h2>
+                        <div class="glass-card rounded-2xl overflow-hidden border border-stone-200 shadow-2xl">
+                            <div class="overflow-x-auto custom-scrollbar" style="max-height: 75vh;">
+                                <table class="w-full text-left border-collapse table-auto">
+                                    <thead class="sticky-header shadow-sm border-b border-slate-300">
+                                        <tr class="text-[9px] uppercase font-black text-slate-600">
+                                            <th class="px-4 py-3 w-12 text-center">ID</th>
+                                            <th class="px-4 py-3 w-64">내부 명령 (클릭 시 복사)</th>
+                                            <th class="px-4 py-3">설명 (Description)</th>
+                                            <th class="px-4 py-3 w-24 text-center text-slate-500 uppercase tracking-tighter">카테고리</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cmdTableBody" class="text-[11px]">
+                                        ${this.renderCommandList(db.internalCommands)}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            getInternalCatTextColor(cat) {
+                const colors = {
+                    "Source": "text-blue-600 font-bold",
+                    "Left": "text-indigo-600 font-bold",
+                    "Right": "text-purple-600 font-bold",
+                    "File Ops": "text-emerald-600 font-bold",
+                    "Config": "text-orange-600 font-bold",
+                    "Net": "text-cyan-600 font-bold",
+                    "Misc": "text-slate-600 font-bold",
+                    "Mark": "text-rose-600 font-bold",
+                    "Clip": "text-teal-600 font-bold",
+                    "Nav": "text-lime-600 font-bold",
+                    "Tabs": "text-pink-600 font-bold",
+                    "Sort": "text-amber-600 font-bold",
+                    "User": "text-fuchsia-600 font-bold",
+                    "View": "text-sky-600 font-bold",
+                    "Window": "text-gray-500 font-bold",
+                    "Params": "text-red-600 font-bold",
+                    "CustomView": "text-amber-600 font-bold",
+                    "ViewMode": "text-neutral-600 font-bold"
+                };
+                return colors[cat] || "text-stone-400 font-bold";
+            },
+
+            renderCommandList(list) {
+                return list.map(c => {
+                    const colorClass = this.getInternalCatTextColor(c.cat);
+                    return `
+                    <tr class="command-row border-b border-stone-100 transition-colors">
+                        <td class="px-4 py-2.5 font-mono text-stone-400 text-[10px] text-center">${c.id}</td>
+                        <td class="px-4 py-2.5 font-bold ${colorClass} copyable-cmd rounded-md" onclick="app.copyToClipboard('${c.cmd}')">${c.cmd}</td>
+                        <td class="px-4 py-2.5 text-stone-600 font-medium">${c.desc}</td>
+                        <td class="px-4 py-2.5 text-center">
+                            <span class="${colorClass} text-[9px] uppercase tracking-tighter">${c.cat}</span>
+                        </td>
+                    </tr>
+                `}).join('');
+            },
+
+            renderSearchResults() {
+                const container = document.getElementById('viewContainer');
+                const query = this.state.query;
+                const sRes = db.shortcuts.filter(s => s.key.toLowerCase().includes(query) || s.desc.toLowerCase().includes(query));
+                const pRes = db.params.filter(p => p.code.toLowerCase().includes(query) || p.desc.toLowerCase().includes(query));
+                const vRes = db.vars.filter(v => v.name.toLowerCase().includes(query) || v.desc.toLowerCase().includes(query));
+                const cRes = db.internalCommands.filter(c => c.cmd.toLowerCase().includes(query) || c.desc.toLowerCase().includes(query));
+
+                container.innerHTML = `
+                    <div class="space-y-6 animate-in fade-in duration-300">
+                        <h2 class="text-xl font-black text-slate-800 italic">"${query}" 통합 검색 결과 (${sRes.length + pRes.length + vRes.length + cRes.length})</h2>
+                        ${cRes.length > 0 ? `<section><h3 class="font-black text-[10px] text-stone-400 mb-2 uppercase tracking-widest">내부 명령 (cm_)</h3><div class="glass-card p-3 rounded-2xl space-y-1 max-h-96 overflow-y-auto custom-scrollbar border shadow-inner bg-stone-100/50">${cRes.map(c => `<div class="flex items-center justify-between p-2 bg-white rounded-lg cursor-pointer hover:border-blue-400 border border-stone-100 transition-all shadow-sm" onclick="app.copyToClipboard('${c.cmd}')"><code class="text-blue-600 font-bold text-xs">${c.cmd}</code><span class="text-[11px] font-medium text-slate-500">${c.desc}</span></div>`).join('')}</div></section>` : ''}
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            ${sRes.length > 0 ? `<section><h3 class="font-black text-[10px] text-stone-400 mb-2 uppercase tracking-widest">단축키</h3><div class="grid grid-cols-1 gap-2">${sRes.map(s => `<div class="bg-white border p-3 rounded-xl font-bold text-xs shadow-sm flex justify-between"><span>${s.key}</span><span class="text-stone-400 text-[10px] font-normal italic">${s.desc}</span></div>`).join('')}</div></section>` : ''}
+                            ${pRes.length > 0 ? `<section><h3 class="font-black text-[10px] text-stone-400 mb-2 uppercase tracking-widest">매개변수</h3><div class="glass-card p-3 rounded-2xl space-y-2 border shadow-inner">${pRes.map(p => `<div class="flex items-center gap-4 p-2 bg-white rounded-xl cursor-pointer hover:bg-blue-50 transition-all border shadow-sm" onclick="app.appendToTest('${p.code}')"><code class="text-blue-600 font-bold text-xs">${p.code}</code><span class="text-[11px] font-bold text-slate-700">${p.desc}</span></div>`).join('')}</div></section>` : ''}
+                        </div>
+                    </div>
+                `;
+            },
+
+            copyToClipboard(text) {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                textArea.remove();
+                this.showToast(`복사됨: ${text}`);
+            },
+
+            showToast(msg) {
+                const notice = document.createElement('div');
+                notice.className = "fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full text-xs font-bold shadow-2xl z-[100] animate-in slide-in-from-bottom-5 border border-slate-700 shadow-blue-900/20";
+                notice.innerHTML = `<span class="text-blue-400 mr-2 font-black">✓</span> ${msg}`;
+                document.body.appendChild(notice);
+                setTimeout(() => { if(notice) notice.remove(); }, 2000);
+            },
+
+            appendToTest(code) {
+                this.state.testCommand += (this.state.testCommand ? " " : "") + code;
+                const resultBox = document.getElementById('paramResult');
+                if (resultBox) resultBox.innerText = this.state.testCommand;
+                this.showToast(`추가됨: ${code}`);
+            },
+
+            filterParams(cat) { this.state.paramFilter = cat; this.viewParams(document.getElementById('viewContainer')); },
+            filterVars(cat) { this.state.varFilter = cat; this.viewVars(document.getElementById('viewContainer')); },
+            clearTest() { this.state.testCommand = ""; const box = document.getElementById('paramResult'); if(box) box.innerText = "..."; },
+            copyVal(id) { const text = document.getElementById(id).innerText; if(text !== "...") this.copyToClipboard(text); }
+        };
+
+        window.onload = () => app.init();
+    </script>
+</body>
+</html>
